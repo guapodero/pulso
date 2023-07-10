@@ -1,15 +1,46 @@
-use log::info;
-use std::error;
+use log::{debug, info};
+use std::{error, net};
 
+use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
 use futures::stream::AbortHandle;
+use libc;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
 
-// todo deconstruct for processing using header format
-// https://www.ietf.org/rfc/rfc9293.html#section-3.1
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketOwned {
-    pub header: PacketHeader,
-    pub data: Box<[u8]>,
+    capture_header: PacketHeader,
+    data: Box<[u8]>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct PacketHeaders {
+    source_ip: net::IpAddr,
+    dest_port: u16,
+    capture_ts: libc::timeval,
+}
+
+impl PacketOwned {
+    pub fn headers(&self) -> Result<PacketHeaders, std::io::Error> {
+        match SlicedPacket::from_ethernet(&self.data) {
+            Ok(SlicedPacket {
+                ip: Some(InternetSlice::Ipv4(ip_headers, _)),
+                transport: Some(TransportSlice::Tcp(tcp_headers)),
+                ..
+            }) => {
+                let [a, b, c, d] = ip_headers.source();
+                Ok(PacketHeaders {
+                    source_ip: net::IpAddr::V4(net::Ipv4Addr::new(a, b, c, d)),
+                    dest_port: tcp_headers.destination_port(),
+                    capture_ts: self.capture_header.ts,
+                })
+            }
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "unparsed packet", // TODO more detail
+            )),
+        }
+    }
 }
 
 pub struct Codec;
@@ -18,8 +49,10 @@ impl PacketCodec for Codec {
     type Item = PacketOwned;
 
     fn decode(&mut self, packet: Packet) -> Self::Item {
+        debug!("decoding {:?}", packet);
+
         PacketOwned {
-            header: *packet.header,
+            capture_header: *packet.header,
             data: packet.data.into(),
         }
     }
@@ -37,7 +70,7 @@ impl Context {
             .into_iter()
             .find(|d| d.name == device_name)
             .unwrap();
-        println!("device: {:?}", device);
+        debug!("{:?}", device);
 
         let context = Context {
             device,
@@ -58,9 +91,10 @@ impl Context {
             .immediate_mode(true)
             .open()?;
 
-        // todo capture both SYN and ACK parts of connection establishment
+        // TODO capture both SYN and ACK parts of connection establishment
         // https://www.ietf.org/rfc/rfc9293.html#section-3.5
         // https://biot.com/capstats/bpf.html
+        // https://wiki.wireshark.org/TCP_3_way_handshaking
         capture.direction(Direction::In)?;
         capture.filter(
             "tcp[tcpflags] & (tcp-syn) != 0 \
@@ -72,13 +106,17 @@ impl Context {
     }
 
     pub fn process(&mut self, packet: PacketOwned) -> Result<(), Box<dyn error::Error>> {
-        info!("captured {:?}", packet);
-
         self.count += 1;
 
         if self.count > 1 {
             if let Some(abort) = &self.abort {
                 info!("captured more than 1 packet, abort");
+                let PacketHeaders {
+                    source_ip,
+                    dest_port,
+                    ..
+                } = packet.headers()?;
+                println!("{} {} {}", source_ip, dest_port, self.count);
                 abort.abort();
             }
         }

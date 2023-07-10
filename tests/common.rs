@@ -1,5 +1,8 @@
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::{net, thread};
+
+use log::{debug, error, info};
 
 pub fn setup() {
     env_logger::init();
@@ -34,7 +37,7 @@ impl CliProcess {
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "invlalid command",
+                "invalid command",
             ))
         }
     }
@@ -65,4 +68,33 @@ impl CliProcess {
             Err(e) => Err(e),
         }
     }
+}
+
+pub fn tcp_listen<A: net::ToSocketAddrs>(addr: A) -> thread::JoinHandle<()> {
+    debug!(
+        "tcp_listen {}",
+        addr.to_socket_addrs().unwrap().next().unwrap()
+    );
+    let listener = net::TcpListener::bind(addr).unwrap();
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            match stream {
+                Ok(s) => info!("tcp_listen received connection {:?}", s),
+                Err(e) => error!("tcp_listen encountered IO error: {:?}", e),
+            }
+        }
+    })
+    // socket will be closed when JoinHandle goes out of scope
+}
+
+pub fn tcp_connect<A: net::ToSocketAddrs>(addr: A) {
+    debug!(
+        "tcp_connect {}",
+        addr.to_socket_addrs().unwrap().next().unwrap()
+    );
+    {
+        let stream = net::TcpStream::connect(addr).unwrap();
+        info!("tcp_connect opened stream: {:?}", stream);
+    }
+    // connection closed here
 }
