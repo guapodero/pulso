@@ -14,3 +14,4 @@ libc = "0.2"
 etherparse = "0.13"
 tokio = { version = "1.0", features = ["net", "rt", "macros", "rt-multi-thread"] }
 futures = "0.3"
+timeout-readwrite = "0.3"

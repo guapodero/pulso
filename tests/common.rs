@@ -1,38 +1,36 @@
-use std::io::Read;
-use std::process::{Child, Command, Stdio};
-use std::{net, thread};
+use std::io::{ErrorKind, Read};
+use std::process::{Child, ChildStdout, Command, Stdio};
+use std::{net, thread, time};
 
 use log::{debug, error, info};
+use timeout_readwrite::TimeoutReader;
 
 pub fn setup() {
     env_logger::init();
 }
 
 pub struct CliProcess {
-    pub command: String,
-    pub result: Option<CliResult>,
     child_process: Child,
-}
-
-#[derive(Debug)]
-pub struct CliResult {
-    pub status: i32,
-    pub std_out: Vec<String>,
+    output_reader: TimeoutReader<ChildStdout>,
+    pub output_lines: Vec<String>,
 }
 
 impl CliProcess {
     pub fn new(command_str: &str) -> Result<CliProcess, std::io::Error> {
         let parts = command_str.split(" ").collect::<Vec<&str>>();
         if let Some((command, args)) = parts.split_first() {
-            let child = Command::new(command)
+            let mut child = Command::new(command)
                 .args(args)
                 .stdout(Stdio::piped())
                 .spawn()?;
 
+            let stdout = child.stdout.take().unwrap();
+            let reader = TimeoutReader::new(stdout, time::Duration::new(1, 0));
+
             Ok(CliProcess {
-                command: command_str.to_string(),
-                result: None,
                 child_process: child,
+                output_reader: reader,
+                output_lines: vec![],
             })
         } else {
             Err(std::io::Error::new(
@@ -42,30 +40,32 @@ impl CliProcess {
         }
     }
 
-    pub fn poll_result(&mut self) -> Result<Option<()>, std::io::Error> {
+    pub fn poll_result(&mut self) -> Result<Option<i32>, std::io::Error> {
         match self.child_process.try_wait() {
-            Ok(None) => Ok(None),
+            Ok(None) => {
+                self.read_output();
+                Ok(None)
+            }
             Ok(Some(status)) => {
-                let output: Vec<u8> = self
-                    .child_process
-                    .stdout
-                    .take()
-                    .unwrap()
-                    .bytes()
-                    .flatten()
-                    .collect();
-                let lines = String::from_utf8(output)
-                    .unwrap()
-                    .lines()
-                    .map(|s| s.to_string())
-                    .collect();
-                self.result = Some(CliResult {
-                    status: status.code().unwrap(),
-                    std_out: lines,
-                });
-                Ok(Some(()))
+                self.read_output();
+                Ok(Some(status.code().unwrap()))
             }
             Err(e) => Err(e),
+        }
+    }
+
+    fn read_output(&mut self) {
+        let mut buffer = String::new();
+        match self.output_reader.read_to_string(&mut buffer) {
+            Ok(read_bytes) => {
+                if read_bytes > 0 {
+                    self.output_lines.push(buffer.trim().to_owned());
+                }
+            }
+            Err(ref e) if e.kind() == ErrorKind::TimedOut => {
+                self.output_lines.push("-".to_string());
+            }
+            Err(e) => error!("unexpected error {:?}", e),
         }
     }
 }

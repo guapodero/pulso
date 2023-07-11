@@ -1,5 +1,4 @@
-use log::{debug, info};
-use std::{thread, time};
+use log::{debug, error, info};
 
 use crate::common::{tcp_connect, tcp_listen, CliProcess};
 
@@ -14,19 +13,28 @@ fn test_count() {
     debug!("command: {}", command);
 
     let mut process = CliProcess::new(&command).unwrap();
-
-    thread::sleep(time::Duration::new(4, 250));
     // TODO wait here for PID file creation after stream start
 
-    tcp_connect("127.0.0.1:12345");
-    tcp_connect("127.0.0.1:12345");
-
-    while let Ok(None) = process.poll_result() {
-        info!("polling..");
-        thread::sleep(time::Duration::new(4, 250));
+    loop {
+        tcp_connect("127.0.0.1:12345");
+        match process.poll_result() {
+            Ok(None) => {
+                info!("incomplete..");
+            }
+            Ok(Some(code)) => {
+                info!("finished with exit code {}", code);
+                break;
+            }
+            Err(e) => {
+                error!("finished with error {:?}", e);
+            }
+        }
     }
 
-    info!("result: {:?}", process.result);
+    info!("result: {:?}", process.output_lines);
 
-    assert_eq!(process.result.unwrap().std_out, vec!["127.0.0.1 12345 2"]);
+    assert_eq!(
+        process.output_lines.pop(),
+        Some("127.0.0.1 12345 2".to_string())
+    );
 }
