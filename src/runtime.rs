@@ -42,6 +42,7 @@ pub fn run_tokio_stream(context: &mut tcp::Context) -> Result<(), Box<dyn error:
     // todo write current process ID to a file to signal readiness for packets
 
     runtime.block_on(finish);
+    debug!("stream finished");
 
     Ok(())
 }

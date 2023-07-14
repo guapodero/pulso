@@ -1,7 +1,7 @@
 [env.development]
 WORKING_DIR = { script = ["pwd"] }
 RUST_BACKTRACE = 1
-RUST_LOG = "debug"
+RUST_LOG = "trace"
 
 [tasks.setcap]
 command = "sudo"
