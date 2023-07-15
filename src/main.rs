@@ -3,8 +3,8 @@ use std::error;
 use clap::Parser;
 use log::debug;
 
-use pulso::runtime;
-use pulso::tcp;
+use pulso::context::Context;
+use pulso::runtime::run_tokio_stream;
 
 /// TCP connection counter
 #[derive(Parser, Debug)]
@@ -21,9 +21,9 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 
     let args = Args::parse();
 
-    let mut context = tcp::Context::new(&args.device)?;
+    let mut context = Context::new(&args.device)?;
 
-    runtime::run_tokio_stream(&mut context)?;
+    run_tokio_stream(&mut context)?;
 
     Ok(())
 }
