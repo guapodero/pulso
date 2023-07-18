@@ -5,7 +5,7 @@ use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
 use libc;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
 
-use crate::context;
+use crate::context::Context;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketOwned {
@@ -35,9 +35,9 @@ impl PacketOwned {
                     capture_ts: self.capture_header.ts,
                 })
             }
-            _ => Err(std::io::Error::new(
+            e => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "unparsed packet", // TODO more detail
+                format!("unparsed packet {:?}", e),
             )),
         }
     }
@@ -58,9 +58,7 @@ impl PacketCodec for Codec {
     }
 }
 
-pub fn capture_from_interface(
-    context: &mut context::Context,
-) -> Result<Capture<Active>, Box<dyn error::Error>> {
+pub fn capture_from_interface(context: &Context) -> Result<Capture<Active>, Box<dyn error::Error>> {
     let device = Device::list()?
         .into_iter()
         .find(|d| d.name == context.device_name)
@@ -72,10 +70,20 @@ pub fn capture_from_interface(
         .immediate_mode(true)
         .open()?;
 
-    // TODO capture both SYN and ACK parts of connection establishment
-    // https://www.ietf.org/rfc/rfc9293.html#section-3.5
-    // https://biot.com/capstats/bpf.html
-    // https://wiki.wireshark.org/TCP_3_way_handshaking
+    /*
+    The full connection sequence looks like this:
+    13:43:45.070344 IP localhost.34644 > localhost.italk: Flags [S],
+    13:43:45.070361 IP localhost.italk > localhost.34644: Flags [S.],
+    13:43:45.070377 IP localhost.34644 > localhost.italk: Flags [.],
+    13:43:45.070420 IP localhost.34644 > localhost.italk: Flags [P.],
+    13:43:45.070425 IP localhost.italk > localhost.34644: Flags [.],
+    13:43:45.070560 IP localhost.34644 > localhost.italk: Flags [F.],
+    13:43:45.070668 IP localhost.italk > localhost.34644: Flags [F.],
+    13:43:45.070684 IP localhost.34644 > localhost.italk: Flags [.],
+    Capturing only the first packet for now.
+    https://wiki.wireshark.org/TCP_3_way_handshaking
+    https://www.ietf.org/rfc/rfc9293.html#section-3.5
+    */
     capture.direction(Direction::In)?;
     capture.filter(
         "tcp[tcpflags] & (tcp-syn) != 0 \

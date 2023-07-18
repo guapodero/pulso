@@ -8,7 +8,7 @@ use timeout_readwrite::TimeoutReader;
 pub struct CliProcess {
     child_process: Child,
     output_reader: TimeoutReader<ChildStdout>,
-    pub last_output: Option<Vec<String>>,
+    output_buffer: String,
 }
 
 impl CliProcess {
@@ -29,25 +29,32 @@ impl CliProcess {
             Ok(CliProcess {
                 child_process: child,
                 output_reader: reader,
-                last_output: None,
+                output_buffer: String::new(),
             })
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "invalid command",
+                format!("invalid command {}", command_str),
             ))
         }
     }
 
-    pub fn poll_result(&mut self) -> Result<Option<i32>, std::io::Error> {
+    pub fn poll_result(&mut self, do_wait: bool) -> Result<Option<i32>, std::io::Error> {
         self.read_output();
         match self.child_process.try_wait() {
             Ok(None) => {
                 trace!("poll None");
-                Ok(None)
+                if do_wait {
+                    trace!("waiting for exit..");
+                    let status = self.child_process.wait()?;
+                    trace!("exited with {}", status);
+                    Ok(Some(status.code().unwrap()))
+                } else {
+                    Ok(None)
+                }
             }
             Ok(Some(status)) => {
-                trace!("poll {status}");
+                trace!("poll {}", status);
                 Ok(Some(status.code().unwrap()))
             }
             Err(e) => Err(e),
@@ -55,20 +62,22 @@ impl CliProcess {
     }
 
     fn read_output(&mut self) {
-        let mut buffer = String::new();
-        match self.output_reader.read_to_string(&mut buffer) {
+        match self.output_reader.read_to_string(&mut self.output_buffer) {
             Ok(read_bytes) => {
-                trace!("read {read_bytes} bytes");
-                if read_bytes > 0 {
-                    let lines = buffer.trim().lines().map(|s| s.to_owned()).collect();
-                    self.last_output = Some(lines);
-                }
+                trace!("read {} bytes", read_bytes);
             }
             Err(ref e) if e.kind() == ErrorKind::TimedOut => {
                 trace!("read timed out");
-                self.last_output = None;
             }
             Err(e) => error!("unexpected error {:?}", e),
         }
+    }
+
+    pub fn output_lines(&self) -> Vec<String> {
+        self.output_buffer
+            .lines()
+            .into_iter()
+            .map(|s| s.to_owned())
+            .collect()
     }
 }

@@ -10,16 +10,18 @@ use crate::context::Context;
 pub fn run_tokio_stream(context: &mut Context) -> Result<(), Box<dyn error::Error>> {
     debug!("starting tokio runtime");
 
-    let runtime: TokioRuntime = runtime::Builder::new_current_thread()
-        .enable_io()
-        .build()
-        .unwrap();
+    let runtime: TokioRuntime = runtime::Builder::new_current_thread().enable_io().build()?;
 
     let mut abort_wrapper: Option<AbortHandle> = None;
 
+    let capture = capture_from_interface(context)?;
+
     let stream = runtime.block_on(async {
-        let capture = capture_from_interface(context).unwrap();
-        let stream = capture.setnonblock().unwrap().stream(Codec).unwrap();
+        let stream = capture
+            .setnonblock()
+            .unwrap()
+            .stream(Codec)
+            .expect("failed to capture from interface as stream");
         let (abortable, abort) = abortable(stream);
         abort_wrapper = Some(abort);
         abortable

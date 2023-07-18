@@ -6,15 +6,30 @@ use cli_process::CliProcess;
 
 mod cli_process;
 
-pub fn steps(steps: Vec<(&str, Option<i32>, Option<Vec<&str>>)>, step_timeout: time::Duration) {
+#[cfg(test)]
+#[ctor::ctor]
+fn init() {
     env_logger::init();
+}
 
-    let owned_vec = |v: Vec<&str>| -> Vec<String> { v.into_iter().map(|s| s.to_owned()).collect() };
+#[derive(Debug)]
+pub enum Output<T> {
+    /// no output
+    X,
+    /// a specific value
+    V(T),
+    /// defer test
+    F(fn(T)),
+}
+
+pub fn steps(steps: Vec<(&str, Output<i32>, Output<Vec<String>>)>) {
+    let step_timeout = time::Duration::new(1, 500);
 
     let mut process: Option<CliProcess> = None;
     let mut _listener: Option<thread::JoinHandle<()>> = None;
+    let step_count = steps.len();
 
-    for (command, expect_exit, expect_lines) in steps {
+    for (i, (command, expect_exit, expect_stdout)) in steps.into_iter().enumerate() {
         info!("command: {command}");
         match command {
             bin if bin.starts_with("$0") => {
@@ -39,14 +54,30 @@ pub fn steps(steps: Vec<(&str, Option<i32>, Option<Vec<&str>>)>, step_timeout: t
         }
 
         let proc = process.as_mut().unwrap();
-        let result = proc.poll_result().expect("poll failure");
+        let do_wait = i == step_count - 1;
 
-        assert_eq!(result, expect_exit, "command: {command}");
-        assert_eq!(
-            proc.last_output,
-            expect_lines.map(owned_vec),
-            "command: {command}"
-        );
+        let result = proc.poll_result(do_wait).expect("poll failure");
+        match expect_exit {
+            Output::X => assert_eq!(result.is_none(), true, "expected no exit"),
+            Output::V(expected) => assert_eq!(
+                result.expect("expected exit"),
+                expected,
+                "command {}",
+                command
+            ),
+            Output::F(test) => test(result.expect("expected exit")),
+        }
+
+        let std_out = proc.output_lines();
+        match expect_stdout {
+            Output::X => {
+                assert_eq!(std_out.is_empty(), true, "expected nothing from stdout")
+            }
+            Output::V(expected) => {
+                assert_eq!(std_out, expected, "command {}", command)
+            }
+            Output::F(test) => test(std_out),
+        }
     }
 }
 
