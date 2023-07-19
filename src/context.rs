@@ -1,5 +1,4 @@
-use std::error;
-
+use anyhow::Result;
 use futures::stream::AbortHandle;
 use log::info;
 
@@ -11,20 +10,14 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(device_name: &str) -> Result<Context, Box<dyn error::Error>> {
-        let context = Context {
+    pub fn new(device_name: &str) -> Context {
+        Context {
             device_name: device_name.to_string(),
             count: 0,
-        };
-
-        Ok(context)
+        }
     }
 
-    pub fn process(
-        &mut self,
-        packet: PacketOwned,
-        abort: &AbortHandle,
-    ) -> Result<(), Box<dyn error::Error>> {
+    pub fn process(&mut self, packet: PacketOwned, abort: &AbortHandle) -> Result<()> {
         self.count += 1;
 
         if self.count > 1 {

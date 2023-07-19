@@ -1,33 +1,35 @@
-use log::{debug, error};
-use std::error;
-
+use anyhow::{anyhow, Context as AContext, Result};
 use futures::stream::{abortable, AbortHandle, StreamExt};
+use log::{debug, error};
 use tokio::runtime::{self, Runtime as TokioRuntime};
 
 use crate::capture::{capture_from_interface, Codec, PacketOwned};
 use crate::context::Context;
 
-pub fn run_tokio_stream(context: &mut Context) -> Result<(), Box<dyn error::Error>> {
+pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
     debug!("starting tokio runtime");
 
-    let runtime: TokioRuntime = runtime::Builder::new_current_thread().enable_io().build()?;
-
-    let mut abort_wrapper: Option<AbortHandle> = None;
+    let runtime: TokioRuntime = runtime::Builder::new_current_thread()
+        .enable_io()
+        .build()
+        .context("build tokio runtime")?;
 
     let capture = capture_from_interface(context)?;
+
+    let mut abort_wrapper: Option<AbortHandle> = None;
 
     let stream = runtime.block_on(async {
         let stream = capture
             .setnonblock()
             .unwrap()
             .stream(Codec)
-            .expect("failed to capture from interface as stream");
+            .expect("capture from interface as stream");
         let (abortable, abort) = abortable(stream);
         abort_wrapper = Some(abort);
         abortable
     });
 
-    let abort = abort_wrapper.unwrap();
+    let abort = abort_wrapper.ok_or(anyhow!("create stream abort handle"))?;
 
     let finish = stream.for_each(move |next: Result<PacketOwned, pcap::Error>| {
         match next {

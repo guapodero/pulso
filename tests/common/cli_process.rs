@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{ErrorKind, Read};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::time;
@@ -14,12 +15,14 @@ pub struct CliProcess {
 impl CliProcess {
     pub fn new(
         command_str: &str,
+        envs: &HashMap<String, String>,
         read_timeout: time::Duration,
     ) -> Result<CliProcess, std::io::Error> {
         let parts = command_str.split(" ").collect::<Vec<&str>>();
         if let Some((command, args)) = parts.split_first() {
             let mut child = Command::new(command)
                 .args(args)
+                .envs(envs)
                 .stdout(Stdio::piped())
                 .spawn()?;
 

@@ -1,6 +1,7 @@
 use crate::common::steps;
 use crate::common::Output::{F, V, X};
 
+#[cfg(test)]
 mod common;
 
 #[test]
@@ -13,8 +14,16 @@ fn test_help() {
 }
 
 #[test]
-fn test_invalid_args() {
+fn test_missing_args() {
     steps(vec![("$0", V(2), X)]);
+}
+
+#[test]
+fn test_invalid_interface() {
+    steps(vec![
+        ("env RUST_BACKTRACE=0", X, X),
+        ("$0 --device kungfu", V(1), X),
+    ]);
 }
 
 #[test]

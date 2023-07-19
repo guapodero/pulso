@@ -1,8 +1,9 @@
-use log::debug;
-use std::{error, net};
+use std::net;
 
+use anyhow::{anyhow, Context as AContext, Result};
 use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
 use libc;
+use log::debug;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
 
 use crate::context::Context;
@@ -21,7 +22,7 @@ pub struct ExtractedHeaders {
 }
 
 impl PacketOwned {
-    pub fn headers(&self) -> Result<ExtractedHeaders, std::io::Error> {
+    pub fn headers(&self) -> Result<ExtractedHeaders> {
         match SlicedPacket::from_ethernet(&self.data) {
             Ok(SlicedPacket {
                 ip: Some(InternetSlice::Ipv4(ip_headers, _)),
@@ -35,9 +36,15 @@ impl PacketOwned {
                     capture_ts: self.capture_header.ts,
                 })
             }
-            e => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("unparsed packet {:?}", e),
+            Ok(skipped) => Err(anyhow!(
+                "skipped {:?} at {:?}",
+                skipped,
+                self.capture_header.ts,
+            )),
+            Err(e) => Err(anyhow!(
+                "parse failure {:?} at {:?}",
+                e,
+                self.capture_header.ts,
             )),
         }
     }
@@ -58,17 +65,20 @@ impl PacketCodec for Codec {
     }
 }
 
-pub fn capture_from_interface(context: &Context) -> Result<Capture<Active>, Box<dyn error::Error>> {
-    let device = Device::list()?
+pub fn capture_from_interface(context: &Context) -> Result<Capture<Active>> {
+    let device = Device::list()
+        .context("list devices")?
         .into_iter()
         .find(|d| d.name == context.device_name)
-        .unwrap();
+        .ok_or(anyhow!("device not found: {}", context.device_name))?;
     debug!("{:?}", device);
 
-    let mut capture = Capture::from_device(device)?
+    let mut capture = Capture::from_device(device)
+        .context("capture from device")?
         .snaplen(96)
         .immediate_mode(true)
-        .open()?;
+        .open()
+        .context("start capture")?;
 
     /*
     The full connection sequence looks like this:
@@ -84,12 +94,16 @@ pub fn capture_from_interface(context: &Context) -> Result<Capture<Active>, Box<
     https://wiki.wireshark.org/TCP_3_way_handshaking
     https://www.ietf.org/rfc/rfc9293.html#section-3.5
     */
-    capture.direction(Direction::In)?;
-    capture.filter(
-        "tcp[tcpflags] & (tcp-syn) != 0 \
-         and tcp[tcpflags] & (tcp-ack) = 0",
-        true,
-    )?;
+    capture
+        .direction(Direction::In)
+        .context("set capture direction")?;
+    capture
+        .filter(
+            "tcp[tcpflags] & (tcp-syn) != 0 \
+             and tcp[tcpflags] & (tcp-ack) = 0",
+            true,
+        )
+        .context("set capture filter")?;
 
     Ok(capture)
 }
