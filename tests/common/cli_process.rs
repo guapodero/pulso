@@ -76,11 +76,7 @@ impl CliProcess {
         }
     }
 
-    pub fn output_lines(&self) -> Vec<String> {
-        self.output_buffer
-            .lines()
-            .into_iter()
-            .map(|s| s.to_owned())
-            .collect()
+    pub fn output_lines(&self) -> Vec<&str> {
+        self.output_buffer.lines().into_iter().collect()
     }
 }

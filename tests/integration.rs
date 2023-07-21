@@ -1,41 +1,39 @@
-use crate::common::steps;
-use crate::common::Output::{F, V, X};
+use crate::common::scenario::Scenario;
 
 #[cfg(test)]
 mod common;
 
 #[test]
 fn test_help() {
-    steps(vec![(
-        "$0 --help",
-        V(0),
-        F(|lines| assert!(lines.contains(&"TCP connection counter".to_string()))),
-    )]);
+    Scenario::default()
+        .start("--help")
+        .check_result(Some(0), |o| assert!(o.contains(&"TCP connection counter")));
 }
 
 #[test]
-fn test_missing_args() {
-    steps(vec![("$0", V(2), X)]);
+fn test_unexpected_args() {
+    Scenario::default()
+        .start("")
+        .check_result(Some(2), |o| assert!(o.is_empty()));
 }
 
 #[test]
 fn test_invalid_interface() {
-    steps(vec![
-        ("env RUST_BACKTRACE=0", X, X),
-        ("$0 --device kungfu", V(1), X),
-    ]);
+    Scenario::default()
+        .env("RUST_BACKTRACE", "0")
+        .start("--device kungfu")
+        .check_result(Some(1), |o| assert!(o.is_empty()));
 }
 
 #[test]
 fn test_count() {
-    steps(vec![
-        ("$0 --device lo", X, X),
-        ("tcp_listen 127.0.0.1:12345", X, X),
-        ("tcp_connect 127.0.0.1:12345", X, X),
-        (
-            "tcp_connect 127.0.0.1:12345",
-            V(0),
-            V(vec!["127.0.0.1 12345 2".to_string()]),
-        ),
-    ]);
+    Scenario::default()
+        .start("--device lo")
+        .check_result(None, |o| assert!(o.is_empty()))
+        .tcp_listen("127.0.0.1:12345")
+        .check_result(None, |o| assert!(o.is_empty()))
+        .tcp_connect("127.0.0.1:12345")
+        .check_result(None, |o| assert!(o.is_empty()))
+        .tcp_connect("127.0.0.1:12345")
+        .check_result(Some(0), |o| assert_eq!(o, vec!["127.0.0.1 12345 2"]));
 }
