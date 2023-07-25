@@ -11,6 +11,12 @@ struct Args {
     /// device name
     #[arg(short, long)]
     device: String,
+    /// packet limit
+    #[arg(short, long)]
+    connection_limit: Option<usize>,
+    /// time limit
+    #[arg(short, long)]
+    time_limit: Option<u64>,
 }
 
 fn main() {
@@ -19,10 +25,10 @@ fn main() {
 
     let args = Args::parse();
 
-    let mut context = Context::new(&args.device);
+    let mut context = Context::new(&args.device, args.connection_limit, args.time_limit);
 
     if let Err(e) = run_tokio_stream(&mut context) {
-        error!("failed to start tokio stream: {:?}", e.root_cause());
+        error!("failed to start capture stream: {:?}", e.root_cause());
         eprintln!(
             "{} failure during runtime creation:\n\
             {:?}\n\

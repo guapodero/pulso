@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context as AContext, Result};
 use futures::stream::{abortable, AbortHandle, StreamExt};
-use log::{debug, error};
+use log::{debug, error, info};
 use tokio::runtime::{self, Runtime as TokioRuntime};
+use tokio::time::{timeout, Duration};
 
 use crate::capture::{capture_from_interface, Codec, PacketOwned};
 use crate::context::Context;
@@ -11,6 +12,7 @@ pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
 
     let runtime: TokioRuntime = runtime::Builder::new_current_thread()
         .enable_io()
+        .enable_time()
         .build()
         .context("build tokio runtime")?;
 
@@ -30,22 +32,39 @@ pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
     });
 
     let abort = abort_wrapper.ok_or(anyhow!("create stream abort handle"))?;
+    let time_limit = context.time_limit.take();
 
-    let finish = stream.for_each(move |next: Result<PacketOwned, pcap::Error>| {
+    let finish = stream.for_each(|next: Result<PacketOwned, pcap::Error>| {
         match next {
-            Ok(packet) => {
-                if let Err(e) = context.process(packet, &abort) {
-                    error!("processing error: {:?}", e);
+            Ok(packet) => match (context.process(packet), context.connection_limit) {
+                (Ok(count), Some(limit)) if count > limit - 1 => {
+                    info!("connection limit reached. exiting");
+                    abort.abort();
                 }
-            }
+                (Err(e), _) => error!("processing error: {:?}", e),
+                _ => (),
+            },
             Err(pcap_error) => error!("capture error: {:?}", pcap_error),
         }
         futures::future::ready(())
     });
-    debug!("waiting for end of stream");
+    info!("capture stream started");
 
-    runtime.block_on(finish);
+    if let Some(max_seconds) = time_limit {
+        let timeout_duration = Duration::from_secs(max_seconds);
+        debug!("time limit set to {:?}", timeout_duration);
+        let result = runtime.block_on(async { timeout(timeout_duration, finish).await });
+        if result.is_err() {
+            info!("time limit reached. exiting");
+        }
+    } else {
+        runtime.block_on(finish);
+    }
     debug!("stream finished");
+
+    if let Some(summary) = context.summary() {
+        println!("{}", summary);
+    }
 
     Ok(())
 }

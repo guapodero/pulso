@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::common::scenario::Scenario;
 
 #[cfg(test)]
@@ -26,9 +28,9 @@ fn test_invalid_interface() {
 }
 
 #[test]
-fn test_count() {
+fn test_connection_limit() {
     Scenario::default()
-        .start("--device lo")
+        .start("--device lo --connection-limit 2")
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_listen("127.0.0.1:12345")
         .check_result(None, |o| assert!(o.is_empty()))
@@ -36,4 +38,12 @@ fn test_count() {
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_connect("127.0.0.1:12345")
         .check_result(Some(0), |o| assert_eq!(o, vec!["127.0.0.1 12345 2"]));
+}
+
+#[test]
+fn test_time_limit() {
+    Scenario::default()
+        .start("--device lo --time-limit 1")
+        .check_result(Some(0), |o| assert!(o.is_empty()))
+        .check_duration(|d| assert!(d < Duration::from_millis(1100)));
 }

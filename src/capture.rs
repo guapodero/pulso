@@ -1,8 +1,8 @@
-use std::net;
+use std::net::{IpAddr, Ipv4Addr};
 
 use anyhow::{anyhow, Context as AContext, Result};
 use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
-use libc;
+use libc::timeval;
 use log::debug;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
 
@@ -16,9 +16,9 @@ pub struct PacketOwned {
 
 #[derive(Debug)]
 pub struct ExtractedHeaders {
-    pub source_ip: net::IpAddr,
+    pub source_ip: IpAddr,
     pub dest_port: u16,
-    pub capture_ts: libc::timeval,
+    pub capture_ts: timeval,
 }
 
 impl PacketOwned {
@@ -31,7 +31,7 @@ impl PacketOwned {
             }) => {
                 let [a, b, c, d] = ip_headers.source();
                 Ok(ExtractedHeaders {
-                    source_ip: net::IpAddr::V4(net::Ipv4Addr::new(a, b, c, d)),
+                    source_ip: IpAddr::V4(Ipv4Addr::new(a, b, c, d)),
                     dest_port: tcp_headers.destination_port(),
                     capture_ts: self.capture_header.ts,
                 })

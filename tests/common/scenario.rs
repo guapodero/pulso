@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use log::{error, trace};
 
@@ -21,6 +21,7 @@ pub struct Scenario<T: Status> {
     env: HashMap<String, String>,
     step_timeout: Duration,
     binary_path: PathBuf,
+    start_time: Option<Instant>,
     _listener: Option<thread::JoinHandle<()>>,
     _marker: PhantomData<T>,
 }
@@ -32,6 +33,7 @@ impl Scenario<Inactive> {
             env: HashMap::new(),
             step_timeout,
             binary_path: binary.as_ref().to_path_buf(),
+            start_time: None,
             _listener: None,
             _marker: PhantomData,
         }
@@ -49,6 +51,7 @@ impl Scenario<Inactive> {
             env: self.env,
             step_timeout: self.step_timeout,
             binary_path: self.binary_path,
+            start_time: Some(Instant::now()),
             _listener: self._listener,
             _marker: PhantomData,
         }
@@ -63,6 +66,11 @@ impl Scenario<Active> {
         let output = proc.output_lines();
         assert_eq!(result, exit);
         stdout(output);
+        self
+    }
+
+    pub fn check_duration(self, duration: fn(Duration)) -> Self {
+        duration(self.start_time.unwrap().elapsed());
         self
     }
 
