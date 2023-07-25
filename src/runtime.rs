@@ -1,13 +1,18 @@
-use anyhow::{anyhow, Context as AContext, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::stream::{abortable, AbortHandle, StreamExt};
 use log::{debug, error, info};
 use tokio::runtime::{self, Runtime as TokioRuntime};
 use tokio::time::{timeout, Duration};
 
-use crate::capture::{capture_from_interface, Codec, PacketOwned};
-use crate::context::Context;
+use crate::capture::{capture_from_device, Codec, PacketOwned};
+use crate::collector::Collector;
 
-pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
+pub fn run_tokio_stream(
+    device_name: &str,
+    connection_limit: Option<u64>,
+    time_limit: Option<u64>,
+    collector: &mut Collector,
+) -> Result<()> {
     debug!("starting tokio runtime");
 
     let runtime: TokioRuntime = runtime::Builder::new_current_thread()
@@ -16,7 +21,7 @@ pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
         .build()
         .context("build tokio runtime")?;
 
-    let capture = capture_from_interface(context)?;
+    let capture = capture_from_device(device_name)?;
 
     let mut abort_wrapper: Option<AbortHandle> = None;
 
@@ -32,11 +37,10 @@ pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
     });
 
     let abort = abort_wrapper.ok_or(anyhow!("create stream abort handle"))?;
-    let time_limit = context.time_limit.take();
 
     let finish = stream.for_each(|next: Result<PacketOwned, pcap::Error>| {
         match next {
-            Ok(packet) => match (context.process(packet), context.connection_limit) {
+            Ok(packet) => match (collector.process(packet), connection_limit) {
                 (Ok(count), Some(limit)) if count > limit - 1 => {
                     info!("connection limit reached. exiting");
                     abort.abort();
@@ -62,7 +66,7 @@ pub fn run_tokio_stream(context: &mut Context) -> Result<()> {
     }
     debug!("stream finished");
 
-    if let Some(summary) = context.summary() {
+    if let Some(summary) = collector.summary() {
         println!("{}", summary);
     }
 

@@ -9,8 +9,8 @@ use log::{error, trace};
 
 use crate::common::cli_process::CliProcess;
 
-pub enum Active {}
-pub enum Inactive {}
+pub struct Active;
+pub struct Inactive;
 
 pub trait Status {}
 impl Status for Active {}

@@ -4,32 +4,15 @@ use anyhow::Result;
 
 use crate::capture::{ExtractedHeaders, PacketOwned};
 
-pub struct Context {
-    pub device_name: String,
-    pub connection_limit: Option<usize>,
-    pub time_limit: Option<u64>,
-    connection_count: usize,
+#[derive(Default)]
+pub struct Collector {
+    connection_count: u64,
     last_ip: Option<IpAddr>,
     last_dest_port: Option<u16>,
 }
 
-impl Context {
-    pub fn new(
-        device_name: &str,
-        connection_limit: Option<usize>,
-        time_limit: Option<u64>,
-    ) -> Context {
-        Context {
-            device_name: device_name.to_string(),
-            connection_limit,
-            time_limit,
-            connection_count: 0,
-            last_ip: None,
-            last_dest_port: None,
-        }
-    }
-
-    pub fn process(&mut self, packet: PacketOwned) -> Result<usize> {
+impl Collector {
+    pub fn process(&mut self, packet: PacketOwned) -> Result<u64> {
         let ExtractedHeaders {
             source_ip,
             dest_port,

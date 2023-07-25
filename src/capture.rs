@@ -1,12 +1,10 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-use anyhow::{anyhow, Context as AContext, Result};
+use anyhow::{anyhow, Context, Result};
 use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
 use libc::timeval;
 use log::debug;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
-
-use crate::context::Context;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketOwned {
@@ -65,12 +63,12 @@ impl PacketCodec for Codec {
     }
 }
 
-pub fn capture_from_interface(context: &Context) -> Result<Capture<Active>> {
+pub fn capture_from_device(device_name: &str) -> Result<Capture<Active>> {
     let device = Device::list()
         .context("list devices")?
         .into_iter()
-        .find(|d| d.name == context.device_name)
-        .ok_or(anyhow!("device not found: {}", context.device_name))?;
+        .find(|d| d.name == device_name)
+        .ok_or(anyhow!("device not found: {}", device_name))?;
     debug!("{:?}", device);
 
     let mut capture = Capture::from_device(device)
