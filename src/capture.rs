@@ -23,14 +23,20 @@ impl PacketOwned {
     pub fn headers(&self) -> Result<ExtractedHeaders> {
         match SlicedPacket::from_ethernet(&self.data) {
             Ok(SlicedPacket {
-                ip: Some(InternetSlice::Ipv4(ip_headers, _)),
+                ip: Some(ip_headers),
                 transport: Some(TransportSlice::Tcp(tcp_headers)),
                 ..
-            }) => Ok(ExtractedHeaders {
-                source_ip: IpAddress::V4(ip_headers.source()),
-                dest_port: tcp_headers.destination_port(),
-                capture_ts: self.capture_header.ts,
-            }),
+            }) => {
+                let source_ip = match ip_headers {
+                    InternetSlice::Ipv6(headers, _) => IpAddress::V6(headers.source()),
+                    InternetSlice::Ipv4(headers, _) => IpAddress::V4(headers.source()),
+                };
+                Ok(ExtractedHeaders {
+                    source_ip,
+                    dest_port: tcp_headers.destination_port(),
+                    capture_ts: self.capture_header.ts,
+                })
+            }
             Ok(skipped) => Err(anyhow!(
                 "skipped {:?} at {:?}",
                 skipped,
@@ -51,8 +57,6 @@ impl PacketCodec for Codec {
     type Item = PacketOwned;
 
     fn decode(&mut self, packet: Packet) -> Self::Item {
-        debug!("decoding {:?}", packet);
-
         PacketOwned {
             capture_header: *packet.header,
             data: packet.data.into(),
@@ -85,7 +89,7 @@ pub fn capture_from_device(device_name: &str) -> Result<Capture<Active>> {
     13:43:45.070560 IP localhost.34644 > localhost.italk: Flags [F.],
     13:43:45.070668 IP localhost.italk > localhost.34644: Flags [F.],
     13:43:45.070684 IP localhost.34644 > localhost.italk: Flags [.],
-    Capturing only the first packet for now.
+    Capturing only the first packet for now (SYN & !ACK)
     https://wiki.wireshark.org/TCP_3_way_handshaking
     https://www.ietf.org/rfc/rfc9293.html#section-3.5
     */
@@ -94,8 +98,8 @@ pub fn capture_from_device(device_name: &str) -> Result<Capture<Active>> {
         .context("set capture direction")?;
     capture
         .filter(
-            "tcp[tcpflags] & (tcp-syn) != 0 \
-             and tcp[tcpflags] & (tcp-ack) = 0",
+            "(ip6 and proto \\tcp and ip6[40+13]&0x2 != 0 and ip6[40+13]&0x10 = 0) \
+            or (ip and tcp[tcpflags] & (tcp-syn) != 0 and tcp[tcpflags] & (tcp-ack) = 0)",
             true,
         )
         .context("set capture filter")?;

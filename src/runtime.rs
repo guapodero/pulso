@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use futures::stream::{abortable, AbortHandle, StreamExt};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use tokio::runtime::{self, Runtime as TokioRuntime};
 use tokio::time::{timeout, Duration};
 
@@ -45,7 +45,7 @@ pub fn run_tokio_stream(
                     info!("connection limit reached. exiting");
                     abort.abort();
                 }
-                (Err(e), _) => error!("processing error: {:?}", e),
+                (Err(e), _) => warn!("processing error: {:#}", e),
                 _ => (),
             },
             Err(pcap_error) => error!("capture error: {:?}", pcap_error),

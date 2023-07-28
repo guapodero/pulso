@@ -6,7 +6,8 @@ use pulso::sensitive::IpAddress;
 #[cfg(test)]
 mod common;
 
-const LOCALHOST: IpAddress = IpAddress::V4(std::net::Ipv4Addr::LOCALHOST.octets());
+const LOCALHOST_V6: IpAddress = IpAddress::V6(1u128.swap_bytes().to_ne_bytes());
+const LOCALHOST_V4: IpAddress = IpAddress::V4([127, 0, 0, 1]);
 
 #[test]
 fn test_help() {
@@ -31,19 +32,30 @@ fn test_invalid_interface() {
 }
 
 #[test]
-fn test_connection_limit() {
-    let source_id = LOCALHOST.hmac_hex();
+fn test_connection_limit_ipv6() {
+    let source_id = LOCALHOST_V6.hmac_hex();
 
     Scenario::default()
-        .start("--device lo --connection-limit 2")
+        .start("--device lo --connection-limit 1")
+        .check_result(None, |o| assert!(o.is_empty()))
+        .tcp_listen("[::1]:12345")
+        .tcp_connect("[::1]:12345")
+        .check_result(Some(0), |o| {
+            assert_eq!(o, vec![format!("{source_id} 12345 1")])
+        });
+}
+
+#[test]
+fn test_connection_limit_ipv4() {
+    let source_id = LOCALHOST_V4.hmac_hex();
+
+    Scenario::default()
+        .start("--device lo --connection-limit 1")
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_listen("127.0.0.1:12345")
-        .check_result(None, |o| assert!(o.is_empty()))
-        .tcp_connect("127.0.0.1:12345")
-        .check_result(None, |o| assert!(o.is_empty()))
         .tcp_connect("127.0.0.1:12345")
         .check_result(Some(0), |o| {
-            assert_eq!(o, vec![format!("{source_id} 12345 2")])
+            assert_eq!(o, vec![format!("{source_id} 12345 1")])
         });
 }
 
