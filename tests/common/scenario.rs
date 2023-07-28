@@ -59,7 +59,7 @@ impl Scenario<Inactive> {
 }
 
 impl Scenario<Active> {
-    pub fn check_result(mut self, exit: Option<i32>, stdout: fn(Vec<&str>)) -> Self {
+    pub fn check_result(mut self, exit: Option<i32>, stdout: impl Fn(Vec<&str>)) -> Self {
         let proc = self.process.as_mut().unwrap();
         let do_wait = exit.is_some();
         let result = proc.poll_result(do_wait).expect("poll failure");

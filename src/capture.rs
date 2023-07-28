@@ -1,10 +1,10 @@
-use std::net::{IpAddr, Ipv4Addr};
-
 use anyhow::{anyhow, Context, Result};
 use etherparse::{InternetSlice, SlicedPacket, TransportSlice};
 use libc::timeval;
 use log::debug;
 use pcap::{self, Active, Capture, Device, Direction, Packet, PacketCodec, PacketHeader};
+
+use crate::sensitive::IpAddress;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketOwned {
@@ -14,7 +14,7 @@ pub struct PacketOwned {
 
 #[derive(Debug)]
 pub struct ExtractedHeaders {
-    pub source_ip: IpAddr,
+    pub source_ip: IpAddress,
     pub dest_port: u16,
     pub capture_ts: timeval,
 }
@@ -26,14 +26,11 @@ impl PacketOwned {
                 ip: Some(InternetSlice::Ipv4(ip_headers, _)),
                 transport: Some(TransportSlice::Tcp(tcp_headers)),
                 ..
-            }) => {
-                let [a, b, c, d] = ip_headers.source();
-                Ok(ExtractedHeaders {
-                    source_ip: IpAddr::V4(Ipv4Addr::new(a, b, c, d)),
-                    dest_port: tcp_headers.destination_port(),
-                    capture_ts: self.capture_header.ts,
-                })
-            }
+            }) => Ok(ExtractedHeaders {
+                source_ip: IpAddress::V4(ip_headers.source()),
+                dest_port: tcp_headers.destination_port(),
+                capture_ts: self.capture_header.ts,
+            }),
             Ok(skipped) => Err(anyhow!(
                 "skipped {:?} at {:?}",
                 skipped,

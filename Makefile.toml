@@ -17,7 +17,7 @@ args = ["test", "${@}"]
 dependencies = ["build", "setcap"]
 
 [tasks.test-int]
-env = { "RUST_LOG" = "trace", "RUST_TEST_THREADS" = "1" }
+env = { "RUST_LOG" = "trace", "RUST_TEST_THREADS" = "1", "PULSO_SECRET" = "secret" }
 command = "cargo"
 args = ["test", "--test", "integration", "${@}"]
 dependencies = ["build", "setcap"]

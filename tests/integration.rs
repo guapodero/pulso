@@ -1,9 +1,12 @@
 use std::time::Duration;
 
 use crate::common::scenario::Scenario;
+use pulso::sensitive::IpAddress;
 
 #[cfg(test)]
 mod common;
+
+const LOCALHOST: IpAddress = IpAddress::V4(std::net::Ipv4Addr::LOCALHOST.octets());
 
 #[test]
 fn test_help() {
@@ -29,6 +32,8 @@ fn test_invalid_interface() {
 
 #[test]
 fn test_connection_limit() {
+    let source_id = LOCALHOST.hmac_hex();
+
     Scenario::default()
         .start("--device lo --connection-limit 2")
         .check_result(None, |o| assert!(o.is_empty()))
@@ -37,7 +42,9 @@ fn test_connection_limit() {
         .tcp_connect("127.0.0.1:12345")
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_connect("127.0.0.1:12345")
-        .check_result(Some(0), |o| assert_eq!(o, vec!["127.0.0.1 12345 2"]));
+        .check_result(Some(0), |o| {
+            assert_eq!(o, vec![format!("{source_id} 12345 2")])
+        });
 }
 
 #[test]
