@@ -66,9 +66,7 @@ pub fn run_tokio_stream(
     }
     debug!("stream finished");
 
-    if let Some(summary) = collector.summary() {
-        println!("{}", summary);
-    }
+    println!("{}", collector.summary().join("\n"));
 
     Ok(())
 }

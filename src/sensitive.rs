@@ -5,7 +5,7 @@ use hmac::{Mac, SimpleHmac};
 type Blake2b64 = Blake2b<U8>;
 type HmacBlake2 = SimpleHmac<Blake2b64>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IpAddress {
     V6([u8; 16]),
     V4([u8; 4]),

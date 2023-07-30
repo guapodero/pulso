@@ -12,14 +12,9 @@ command = "cargo"
 args = ["build"]
 
 [tasks.test]
-command = "cargo"
-args = ["test", "${@}"]
-dependencies = ["build", "setcap"]
-
-[tasks.test-int]
 env = { "RUST_LOG" = "trace", "RUST_TEST_THREADS" = "1", "PULSO_SECRET" = "secret" }
 command = "cargo"
-args = ["test", "--test", "integration", "${@}"]
+args = ["test", "${@}"]
 dependencies = ["build", "setcap"]
 
 [tasks.run]

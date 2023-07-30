@@ -41,7 +41,7 @@ fn test_connection_limit_ipv6() {
         .tcp_listen("[::1]:12345")
         .tcp_connect("[::1]:12345")
         .check_result(Some(0), |o| {
-            assert_eq!(o, vec![format!("{source_id} 12345 1")])
+            assert_eq!(o, vec![format!("{source_id}:1 12345:1")])
         });
 }
 
@@ -55,7 +55,7 @@ fn test_connection_limit_ipv4() {
         .tcp_listen("127.0.0.1:12345")
         .tcp_connect("127.0.0.1:12345")
         .check_result(Some(0), |o| {
-            assert_eq!(o, vec![format!("{source_id} 12345 1")])
+            assert_eq!(o, vec![format!("{source_id}:1 12345:1")])
         });
 }
 
