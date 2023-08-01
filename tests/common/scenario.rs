@@ -22,7 +22,7 @@ pub struct Scenario<T: Status> {
     step_timeout: Duration,
     binary_path: PathBuf,
     start_time: Option<Instant>,
-    _listener: Option<thread::JoinHandle<()>>,
+    _listeners: Vec<thread::JoinHandle<()>>,
     _marker: PhantomData<T>,
 }
 
@@ -34,7 +34,7 @@ impl Scenario<Inactive> {
             step_timeout,
             binary_path: binary.as_ref().to_path_buf(),
             start_time: None,
-            _listener: None,
+            _listeners: vec![],
             _marker: PhantomData,
         }
     }
@@ -52,7 +52,7 @@ impl Scenario<Inactive> {
             step_timeout: self.step_timeout,
             binary_path: self.binary_path,
             start_time: Some(Instant::now()),
-            _listener: self._listener,
+            _listeners: self._listeners,
             _marker: PhantomData,
         }
     }
@@ -76,7 +76,7 @@ impl Scenario<Active> {
 
     pub fn tcp_listen<A: ToSocketAddrs>(mut self, addr: A) -> Self {
         let listener = TcpListener::bind(addr).unwrap();
-        self._listener = Some(thread::spawn(move || {
+        self._listeners.push(thread::spawn(move || {
             for stream in listener.incoming() {
                 match stream {
                     Ok(s) => trace!("tcp_listen received connection {:?}", s),

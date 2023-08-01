@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fmt::Write as _;
+use std::io::Write;
 
 use anyhow::Result;
 
@@ -29,12 +31,12 @@ impl Collector {
         Ok(self.connection_count)
     }
 
-    pub fn summary(&self) -> Vec<String> {
+    pub fn digest<W: Write>(self, out: &mut W) -> Result<()> {
         let mut grouped: HashMap<IpAddress, Vec<(u16, i64)>> = HashMap::new();
-        for ((source_ip, dest_port), count) in &self.connections {
-            let port_count = (*dest_port, *count as i64); // i64 for descending sort
+        for ((source_ip, dest_port), count) in self.connections {
+            let port_count = (dest_port, count as i64); // i64 for descending sort
             grouped
-                .entry(*source_ip)
+                .entry(source_ip)
                 .and_modify(|counts| counts.push(port_count))
                 .or_insert(vec![port_count]);
         }
@@ -42,7 +44,7 @@ impl Collector {
         let mut sorted: Vec<(IpAddress, i64, Vec<(u16, i64)>)> = grouped
             .into_iter()
             .map(|(source_ip, mut counts)| {
-                counts.sort_by_key(|t| t.0); // 2. ports ascending
+                counts.sort_by_key(|t| t.0); // 2. port ascending
                 counts.sort_by_key(|t| -t.1); // 1. count descending
                 let sum = counts.iter().fold(0, |acc, (_, c)| acc + c);
                 (source_ip, sum, counts)
@@ -50,16 +52,19 @@ impl Collector {
             .collect();
         sorted.sort_by_key(|t| -t.1); // sum descending
 
-        sorted
-            .into_iter()
-            .map(|(source_ip, sum, counts)| {
-                let counts: Vec<String> = counts
-                    .into_iter()
-                    .map(|(k, v)| format!("{k}:{v}"))
-                    .collect();
-                format!("{}:{} {}", source_ip.hmac_hex(), sum, counts.join(" "))
-            })
-            .collect()
+        let mut port_counts = String::new();
+        for (source_ip, sum, counts) in sorted {
+            for (i, (port, count)) in counts.iter().enumerate() {
+                write!(port_counts, "{port}:{count}")?;
+                if i < counts.len() - 1 {
+                    write!(port_counts, " ")?;
+                }
+            }
+            writeln!(out, "{source_ip}:{sum} {port_counts}")?;
+            port_counts.clear();
+        }
+
+        Ok(())
     }
 }
 
@@ -71,7 +76,7 @@ mod tests {
     use crate::sensitive::IpAddress;
 
     #[test]
-    fn test_summary_grouped_sorted() {
+    fn test_digest_grouped_sorted() {
         let ip1 = IpAddress::V6(1u128.swap_bytes().to_ne_bytes());
         let ip2 = IpAddress::V6(2u128.swap_bytes().to_ne_bytes());
 
@@ -85,12 +90,15 @@ mod tests {
             ]),
         };
 
+        let mut out = Vec::new();
+        collector.digest(&mut out).unwrap();
+
         assert_eq!(
-            collector.summary(),
-            vec![
-                format!("{}:3 456:2 345:1", ip2.hmac_hex()),
-                format!("{}:2 123:1 234:1", ip1.hmac_hex()),
-            ]
+            String::from_utf8(out).unwrap(),
+            format!(
+                "{ip2}:3 456:2 345:1\n\
+                 {ip1}:2 123:1 234:1\n"
+            )
         );
     }
 }

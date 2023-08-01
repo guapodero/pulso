@@ -1,4 +1,6 @@
-use base16ct::lower::encode_string;
+use std::fmt;
+
+use base16ct::lower::encode_str;
 use blake2::{digest::consts::U8, Blake2b};
 use hmac::{Mac, SimpleHmac};
 
@@ -11,9 +13,9 @@ pub enum IpAddress {
     V4([u8; 4]),
 }
 
-impl IpAddress {
+impl fmt::Display for IpAddress {
     /// a string of 16 hexadecimal characters
-    pub fn hmac_hex(&self) -> String {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let key = std::env::var("PULSO_SECRET").unwrap();
         let mut hmac = HmacBlake2::new_from_slice(key.as_bytes()).expect("valid key length");
         match self {
@@ -21,6 +23,7 @@ impl IpAddress {
             &IpAddress::V4(ref bytes) => hmac.update(bytes),
         }
         let hash_bytes: [u8; 8] = hmac.finalize().into_bytes().into();
-        encode_string(hash_bytes.as_slice())
+        let mut stack_buf = [0u8; 16];
+        f.write_str(encode_str(hash_bytes.as_slice(), &mut stack_buf)?)
     }
 }

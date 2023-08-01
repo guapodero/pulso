@@ -66,7 +66,5 @@ pub fn run_tokio_stream(
     }
     debug!("stream finished");
 
-    println!("{}", collector.summary().join("\n"));
-
     Ok(())
 }

@@ -1,15 +1,12 @@
+use std::io::{stdout, BufWriter};
+
+use anyhow::Error;
 use clap::Parser;
 use color_print::cstr;
 use log::{debug, error};
 
 use pulso::collector::Collector;
 use pulso::runtime::run_tokio_stream;
-
-const AFTER_HELP: &str = cstr!(
-    r#"<bold><underline>Environment Variables:</underline></bold>
-  PULSO_SECRET    (required) encryption key used for sensitive information
-"#
-);
 
 /// TCP connection counter
 #[derive(Parser, Debug)]
@@ -18,12 +15,46 @@ struct Args {
     /// device name
     #[arg(short, long)]
     device: String,
-    /// packet limit
+    /// max connections
     #[arg(short, long)]
     connection_limit: Option<u64>,
-    /// time limit
+    /// max seconds
     #[arg(short, long)]
     time_limit: Option<u64>,
+}
+
+const AFTER_HELP: &str = cstr!(
+    r#"<bold><underline>Environment Variables:</underline></bold>
+  PULSO_SECRET    (required) encryption key used for sensitive information
+"#
+);
+
+impl Args {
+    fn parse() -> Self {
+        let args = <Self as Parser>::parse();
+        assert!(
+            std::env::var("PULSO_SECRET").map_or(false, |s| !s.is_empty()),
+            "Environment variable PULSO_SECRET must be non-empty"
+        );
+        assert!(
+            args.connection_limit
+                .filter(|&l| l == 0)
+                .or(args.time_limit.filter(|&l| l == 0))
+                .is_none(),
+            "limits must be positive",
+        );
+        args
+    }
+}
+
+fn report_error(error: Error, msg: &str) {
+    error!("{msg}: {:?}", error.root_cause());
+    eprintln!(
+        "{} {msg}\n\n\
+            {error:?}\n\n\
+            run with RUST_BACKTRACE=1 for further details",
+        cstr!("<bold><red>error:</red></bold>")
+    );
 }
 
 fn main() {
@@ -31,10 +62,6 @@ fn main() {
     debug!("main");
 
     let args = Args::parse();
-    assert!(
-        std::env::var("PULSO_SECRET").map_or(false, |s| !s.is_empty()),
-        "Environment variable PULSO_SECRET must be non-empty"
-    );
 
     let mut collector = Collector::default();
 
@@ -44,14 +71,14 @@ fn main() {
         args.time_limit,
         &mut collector,
     ) {
-        error!("failed to start capture stream: {:?}", e.root_cause());
-        eprintln!(
-            "{} failure during runtime creation\n\n\
-            {:?}\n\n\
-            run with RUST_BACKTRACE=1 for further details",
-            cstr!("<bold><red>error:</red></bold>"),
-            e
-        );
+        report_error(e, "failed to start capture stream");
+        std::process::exit(1);
+    }
+
+    let mut writer = BufWriter::new(stdout());
+
+    if let Err(e) = collector.digest(&mut writer) {
+        report_error(e, "failed to write digest output");
         std::process::exit(1);
     }
 }

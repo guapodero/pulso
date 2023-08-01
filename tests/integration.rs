@@ -24,7 +24,7 @@ fn test_unexpected_args() {
 }
 
 #[test]
-fn test_invalid_interface() {
+fn test_invalid_device() {
     Scenario::default()
         .env("RUST_BACKTRACE", "0")
         .start("--device kungfu")
@@ -33,29 +33,29 @@ fn test_invalid_interface() {
 
 #[test]
 fn test_connection_limit_ipv6() {
-    let source_id = LOCALHOST_V6.hmac_hex();
-
     Scenario::default()
-        .start("--device lo --connection-limit 1")
+        .start("--device lo --connection-limit 2")
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_listen("[::1]:12345")
         .tcp_connect("[::1]:12345")
+        .tcp_listen("[::1]:23456")
+        .tcp_connect("[::1]:23456")
         .check_result(Some(0), |o| {
-            assert_eq!(o, vec![format!("{source_id}:1 12345:1")])
+            assert_eq!(o, vec![format!("{LOCALHOST_V6}:2 12345:1 23456:1")])
         });
 }
 
 #[test]
 fn test_connection_limit_ipv4() {
-    let source_id = LOCALHOST_V4.hmac_hex();
-
     Scenario::default()
-        .start("--device lo --connection-limit 1")
+        .start("--device lo --connection-limit 2")
         .check_result(None, |o| assert!(o.is_empty()))
         .tcp_listen("127.0.0.1:12345")
         .tcp_connect("127.0.0.1:12345")
+        .tcp_listen("127.0.0.1:23456")
+        .tcp_connect("127.0.0.1:23456")
         .check_result(Some(0), |o| {
-            assert_eq!(o, vec![format!("{source_id}:1 12345:1")])
+            assert_eq!(o, vec![format!("{LOCALHOST_V4}:2 12345:1 23456:1")])
         });
 }
 
