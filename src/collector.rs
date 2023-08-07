@@ -3,6 +3,7 @@ use std::fmt::Write as _;
 use std::io::Write;
 
 use anyhow::Result;
+use log::debug;
 
 use crate::capture::{ExtractedHeaders, PacketOwned};
 use crate::sensitive::IpAddress;
@@ -10,6 +11,7 @@ use crate::sensitive::IpAddress;
 #[derive(Default)]
 pub struct Collector {
     connection_count: u64,
+    captured_bytes: u64,
     connections: HashMap<(IpAddress, u16), u64>,
 }
 
@@ -22,6 +24,7 @@ impl Collector {
         } = packet.headers()?;
 
         self.connection_count += 1;
+        self.captured_bytes += packet.capture_header.caplen as u64;
 
         self.connections
             .entry((source_ip, dest_port))
@@ -31,6 +34,7 @@ impl Collector {
         Ok(self.connection_count)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn digest<W: Write>(self, out: &mut W) -> Result<()> {
         let mut grouped: HashMap<IpAddress, Vec<(u16, i64)>> = HashMap::new();
         for ((source_ip, dest_port), count) in self.connections {
@@ -64,6 +68,8 @@ impl Collector {
             port_counts.clear();
         }
 
+        debug!("captured bytes: {}", self.captured_bytes);
+
         Ok(())
     }
 }
@@ -81,13 +87,13 @@ mod tests {
         let ip2 = IpAddress::V6(2u128.swap_bytes().to_ne_bytes());
 
         let collector = Collector {
-            connection_count: 5,
             connections: HashMap::from([
                 ((ip1, 123), 1),
                 ((ip1, 234), 1),
                 ((ip2, 345), 1),
                 ((ip2, 456), 2),
             ]),
+            ..Default::default()
         };
 
         let mut out = Vec::new();

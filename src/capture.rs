@@ -8,7 +8,7 @@ use crate::sensitive::IpAddress;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketOwned {
-    capture_header: PacketHeader,
+    pub capture_header: PacketHeader,
     data: Box<[u8]>,
 }
 

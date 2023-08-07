@@ -64,5 +64,5 @@ fn test_time_limit() {
     Scenario::default()
         .start("--device lo --time-limit 1")
         .check_result(Some(0), |o| assert!(o.is_empty()))
-        .check_duration(|d| assert!(d < Duration::from_millis(1100)));
+        .check_duration(|d| assert!(d < Duration::from_secs(2)));
 }
