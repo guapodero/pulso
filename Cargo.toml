@@ -16,10 +16,14 @@ tokio = { version = "1.0", features = ["net", "rt", "macros", "rt-multi-thread",
 futures = "0.3"
 anyhow = { version = "1.0", features = ["backtrace"] }
 color-print = "0.3"
-hmac = "0.12"
-blake2 = "0.10"
-base16ct = "0.2"
+hmac = { version = "0.12", optional = true }
+blake2 = { version = "0.10", optional = true }
+base16ct = { version = "0.2", optional = true }
 
 [dev-dependencies]
 timeout-readwrite = "0.3"
 ctor = "0.2"
+
+[features]
+default = ["privacy"]
+privacy = ["dep:hmac", "dep:blake2", "dep:base16ct"]

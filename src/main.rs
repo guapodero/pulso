@@ -10,7 +10,7 @@ use pulso::runtime::run_tokio_stream;
 
 /// TCP connection counter
 #[derive(Parser, Debug)]
-#[command(author, version, about, after_help = Some(AFTER_HELP))]
+#[command(author, version, about, after_help = AFTER_HELP)]
 struct Args {
     /// device name
     #[arg(short, long)]
@@ -23,19 +23,18 @@ struct Args {
     time_limit: Option<u64>,
 }
 
-const AFTER_HELP: &str = cstr!(
+#[cfg(feature = "privacy")]
+const AFTER_HELP: Option<&str> = Some(cstr!(
     r#"<bold><underline>Environment Variables:</underline></bold>
   PULSO_SECRET    (required) encryption key used for sensitive information
 "#
-);
+));
+#[cfg(not(feature = "privacy"))]
+const AFTER_HELP: Option<&str> = None;
 
 impl Args {
     fn parse() -> Self {
         let args = <Self as Parser>::parse();
-        assert!(
-            std::env::var("PULSO_SECRET").map_or(false, |s| !s.is_empty()),
-            "Environment variable PULSO_SECRET must be non-empty"
-        );
         assert!(
             args.connection_limit
                 .filter(|&l| l == 0)
@@ -43,6 +42,13 @@ impl Args {
                 .is_none(),
             "limits must be positive",
         );
+
+        #[cfg(feature = "privacy")]
+        assert!(
+            std::env::var("PULSO_SECRET").map_or(false, |s| !s.is_empty()),
+            "Environment variable PULSO_SECRET must be non-empty"
+        );
+
         args
     }
 }
@@ -74,6 +80,8 @@ fn main() {
         report_error(e, "failed to start capture stream");
         std::process::exit(1);
     }
+
+    debug!("stream finished. creating digest");
 
     let mut writer = BufWriter::new(stdout());
 
