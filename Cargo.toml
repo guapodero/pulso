@@ -27,3 +27,4 @@ ctor = "0.2"
 [features]
 default = ["privacy"]
 privacy = ["dep:hmac", "dep:blake2", "dep:base16ct"]
+immediate_mode = []

@@ -74,8 +74,9 @@ pub fn capture_from_device(device_name: &str) -> Result<Capture<Active>> {
 
     let mut capture = Capture::from_device(device)
         .context("capture from device")?
-        .snaplen(96)
-        .immediate_mode(true)
+        .snaplen(96) // only tcp headers
+        .timeout(1000) // read network buffer at least once per second
+        .immediate_mode(cfg!(feature = "immediate_mode")) // for integration testing
         .open()
         .context("start capture")?;
 
@@ -96,6 +97,7 @@ pub fn capture_from_device(device_name: &str) -> Result<Capture<Active>> {
     capture
         .direction(Direction::In)
         .context("set capture direction")?;
+
     capture
         .filter(
             "(ip6 and proto \\tcp and ip6[40+13]&0x2 != 0 and ip6[40+13]&0x10 = 0) \

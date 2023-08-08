@@ -9,12 +9,12 @@ args = ["setcap", "cap_net_raw,cap_net_admin=eip", "${WORKING_DIR}/target/debug/
 
 [tasks.build]
 command = "cargo"
-args = ["build"]
+args = ["build", "--features", "immediate_mode"]
 
 [tasks.test]
 env = { "RUST_LOG" = "trace", "RUST_TEST_THREADS" = "1", "PULSO_SECRET" = "secret" }
 command = "cargo"
-args = ["test", "${@}"]
+args = ["test", "--features", "immediate_mode", "${@}"]
 dependencies = ["build", "setcap"]
 
 [tasks.run]
