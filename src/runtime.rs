@@ -7,7 +7,7 @@ use tokio::time::{self, Duration};
 use crate::capture::{capture_from_device, Codec};
 use crate::collector::Collector;
 
-pub fn run_tokio_stream(
+pub fn collect_async(
     device_name: &str,
     connection_limit: Option<u64>,
     time_limit: Option<u64>,
@@ -31,6 +31,8 @@ pub fn run_tokio_stream(
         let timeout_future = time::timeout(timeout_duration, futures::future::pending::<()>());
         tokio::pin!(timeout_future);
 
+        info!("starting capture on device: {}", device_name);
+
         loop {
             tokio::select! {
                 next = stream.next() => match next {
@@ -52,6 +54,7 @@ pub fn run_tokio_stream(
                     info!("time limit reached. exiting");
                     break;
                 }
+                // TODO break on SIGINT
             }
         }
 

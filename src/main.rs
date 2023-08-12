@@ -6,7 +6,7 @@ use color_print::cstr;
 use log::{debug, error};
 
 use pulso::collector::Collector;
-use pulso::runtime::run_tokio_stream;
+use pulso::runtime::collect_async;
 
 /// TCP connection counter
 #[derive(Parser, Debug)]
@@ -71,7 +71,7 @@ fn main() {
 
     let mut collector = Collector::default();
 
-    if let Err(e) = run_tokio_stream(
+    if let Err(e) = collect_async(
         &args.device,
         args.connection_limit,
         args.time_limit,

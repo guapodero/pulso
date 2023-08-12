@@ -1,11 +1,15 @@
 [env.development]
 WORKING_DIR = { script = ["pwd"] }
+PULSO_VERSION = { script = ["cargo pkgid | cut -d '#' -f 2"] }
 RUST_BACKTRACE = 1
 RUST_LOG = "debug"
 
+[config]
+skip_core_tasks = true
+
 [tasks.setcap]
 command = "sudo"
-args = ["setcap", "cap_net_raw,cap_net_admin=eip", "${WORKING_DIR}/target/debug/pulso"]
+args = ["setcap", "cap_net_raw=eip", "${WORKING_DIR}/target/debug/pulso"]
 
 [tasks.build]
 command = "cargo"
@@ -21,3 +25,19 @@ dependencies = ["build", "setcap"]
 command = "cargo"
 args = ["run", "${@}"]
 dependencies = ["build", "setcap"]
+
+[tasks.release-build]
+command = "cross"
+args = ["build", "--target", "x86_64-unknown-linux-musl", "--release"]
+
+[tasks.release-tar]
+command = "tar"
+args = [
+  "-czvf",
+  "releases/x86_64-unknown-linux-musl/pulso_${PULSO_VERSION}.tar.gz",
+  "--directory=target/x86_64-unknown-linux-musl/release",
+  "pulso"
+]
+
+[tasks.release]
+dependencies = ["release-build", "release-tar"]
