@@ -13,7 +13,9 @@ const LOCALHOST_V4: IpAddress = IpAddress::V4([127, 0, 0, 1]);
 fn test_help() {
     Scenario::default()
         .start("--help")
-        .check_result(Some(0), |o| assert!(o.contains(&"TCP connection counter")));
+        .check_result(Some(0), |o| {
+            assert!(o.iter().any(|line| line.contains(&"Usage:")));
+        });
 }
 
 #[test]

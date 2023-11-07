@@ -1,7 +1,16 @@
 [package]
 name = "pulso"
 version = "0.1.0"
+authors = ["Daniel James Baumann <dan.james.baumann@gmail.com>"]
+description = "A simple metrics collector for TCP/IP"
+license = "MIT"
+repository = "https://github.com/guapodero/pulso"
+readme = "README.md"
+keywords = ["pcap", "packet", "sniffing", "metric"]
+categories = ["command-line-utilities", "network-programming"]
 edition = "2021"
+rust-version = "1.73.0"
+exclude = ["/releases"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

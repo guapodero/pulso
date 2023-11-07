@@ -48,11 +48,25 @@ Logs are produced to the standard error stream by setting the RUST_LOG environme
 
 ### Examples
 
-Listen on all ports for new incoming connections and produce a digest after 1 minute.
+Produce a digest after 10 connections
+```
+tar xvfz releases/x86_64-unknown-linux-musl/pulso_0.1.0.tar.gz
+sudo setcap cap_net_raw=eip ./pulso
+PULSO_SECRET=foo ./pulso -d lo -c 10
+# 2da25a664b49c9b5:10 9306:9 9056:1
+```
 
-`RUST_LOG=info PULSO_SECRET=test pulso -d eth0 -t 60`
+Show all logs and produce a digest after 1 minute
+```
+RUST_LOG=info PULSO_SECRET=test pulso -d eth0 -t 60
+```
 
 For a more complete picture of the intended functionality, refer to the integration tests.
 
 ## Development
+
+This project is almost feature complete. I haven't deployed it yet. I doubt I will devote
+more energy to this but there might be a new release after I've had a chance to test it
+in the wild.
+
 `cargo make test`
